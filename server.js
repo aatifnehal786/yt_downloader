@@ -1,101 +1,97 @@
 import express from "express";
 import cors from "cors";
-import { spawn } from "child_process";
 import path from "path";
-
 import { fileURLToPath } from "url";
+import ytdlp from "yt-dlp-exec";
 
 const app = express();
-app.use(cors({
-  origin:  "http://localhost:5173",
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-}));
 app.use(express.json());
 
-// ✅ Path to your ffmpeg binary
-
-
-// Convert import.meta.url to __dirname
+// ===== ES Modules __dirname fix =====
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Path to bundled ffmpeg
+// ===== CORS =====
+app.use(
+  cors({
+    origin: "http://localhost:5173", // your React frontend
+    credentials: true,
+    methods: ["GET", "POST", "OPTIONS"],
+  })
+);
+
+// ===== Path to bundled ffmpeg =====
 const ffmpegPath = path.join(__dirname, "ffmpeg-8.0-essentials_build", "bin", "ffmpeg.exe");
 
-console.log(ffmpegPath); // Check path
-
-
-// Route to fetch video info
-app.get("/api/video-info", (req, res) => {
+// ===== Video Info Route =====
+app.get("/api/video-info", async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).json({ error: "Missing video URL" });
 
-  const ytDlp = spawn("yt-dlp", ["-j", url]);
+  try {
+    const info = await ytdlp(url, {
+      dumpJson: true,
+      noWarnings: true,
+      noCheckCertificate: true,
+      preferFreeFormats: true,
+      ffmpegLocation: ffmpegPath,
+    });
 
-  let output = "";
-  ytDlp.stdout.on("data", (data) => (output += data.toString()));
+    // Filter formats: only video (with or without audio)
+    const formats = info.formats
+      .filter((f) => f.vcodec !== "none")
+      .map((f) => ({
+        formatId: f.format_id,
+        quality: f.format_note || f.resolution || "unknown",
+        ext: f.ext,
+        hasVideo: f.vcodec !== "none",
+        hasAudio: f.acodec !== "none",
+        size: f.filesize ? (f.filesize / (1024 * 1024)).toFixed(2) + " MB" : "Unknown",
+      }));
 
-  ytDlp.stderr.on("data", (data) =>
-    console.error("yt-dlp stderr:", data.toString())
-  );
-
-  ytDlp.on("close", () => {
-    try {
-      const data = JSON.parse(output);
-      const formats = data.formats
-        .filter((f) => f.vcodec !== "none")
-        .map((f) => ({
-          formatId: f.format_id,
-          quality: f.format_note || f.resolution || "unknown",
-          ext: f.ext,
-          hasVideo: f.vcodec !== "none",
-          hasAudio: f.acodec !== "none",
-          size: f.filesize
-            ? (f.filesize / (1024 * 1024)).toFixed(2) + " MB"
-            : "Unknown",
-        }));
-
-      res.json({
-        title: data.title,
-        thumbnail: data.thumbnail,
-        formats,
-      });
-    } catch (err) {
-      console.error("JSON parse error:", err);
-      res.status(500).json({ error: "Failed to parse yt-dlp output" });
-    }
-  });
+    res.json({
+      title: info.title,
+      thumbnail: info.thumbnail,
+      formats,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch video info" });
+  }
 });
 
-// Route to download video (merge if needed)
+// ===== Download Route =====
 app.get("/api/download", (req, res) => {
   const { url, formatId } = req.query;
-  if (!url || !formatId)
-    return res.status(400).json({ error: "Missing url or formatId" });
+  if (!url || !formatId) return res.status(400).json({ error: "Missing url or formatId" });
 
-  // ✅ yt-dlp will use your bundled ffmpeg
- const ytDlp = spawn("yt-dlp", [
-  "-f",
-  `${formatId}+bestaudio/best`,
-  "--ffmpeg-location",
-  ffmpegPath,
-  "-o",
-  "-",
-  url,
-]);
-  res.setHeader("Content-Disposition", 'attachment; filename="video.mp4"');
-  res.setHeader("Content-Type", "video/mp4");
+  try {
+    const download = ytdlp.raw(
+      [
+        url,
+        "-f",
+        `${formatId}+bestaudio/best`,
+        "--ffmpeg-location",
+        ffmpegPath,
+        "-o",
+        "-",
+      ],
+      { stdio: ["ignore", "pipe", "pipe"] }
+    );
 
-  ytDlp.stdout.pipe(res);
+    res.setHeader("Content-Disposition", 'attachment; filename="video.mp4"');
+    res.setHeader("Content-Type", "video/mp4");
 
-  ytDlp.stderr.on("data", (data) => {
-    console.error("yt-dlp stderr:", data.toString());
-  });
+    download.stdout.pipe(res);
 
-  ytDlp.on("close", (code) => {
-    console.log(`yt-dlp process exited with code ${code}`);
-  });
+    download.stderr.on("data", (data) => console.error(data.toString()));
+    download.on("close", (code) => console.log("yt-dlp process exited with code", code));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to download video" });
+  }
 });
 
-app.listen(5000, () => console.log("✅ Server running on http://localhost:5000"));
+// ===== Start Server =====
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

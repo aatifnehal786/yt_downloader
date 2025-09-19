@@ -5,16 +5,15 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-  "start": "node server.js"
- 
-}
-,
+    "start": "node server.js"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
     "cors": "^2.8.5",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "yt-dlp-exec": "^1.0.2"
   }
 }
