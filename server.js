@@ -1,12 +1,33 @@
 import express from "express";
 import cors from "cors";
 import { spawn } from "child_process";
+import path from "path";
+
+import { fileURLToPath } from "url";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ✅ Route to fetch all formats
+// ✅ Path to your ffmpeg binary
+
+
+// Convert import.meta.url to __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Now you can build ffmpeg path
+const ffmpegPath = path.join(
+  __dirname,
+  "ffmpeg-8.0-essentials_build",
+  "bin",
+  "ffmpeg.exe"
+);
+
+console.log(ffmpegPath); // Check path
+
+
+// Route to fetch video info
 app.get("/api/video-info", (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).json({ error: "Missing video URL" });
@@ -20,13 +41,11 @@ app.get("/api/video-info", (req, res) => {
     console.error("yt-dlp stderr:", data.toString())
   );
 
-  ytDlp.on("close", (code) => {
+  ytDlp.on("close", () => {
     try {
       const data = JSON.parse(output);
-
-      // ✅ return both progressive and video-only formats
       const formats = data.formats
-        .filter((f) => f.vcodec !== "none") // must have video
+        .filter((f) => f.vcodec !== "none")
         .map((f) => ({
           formatId: f.format_id,
           quality: f.format_note || f.resolution || "unknown",
@@ -50,16 +69,18 @@ app.get("/api/video-info", (req, res) => {
   });
 });
 
-// ✅ Route to download a selected format
+// Route to download video (merge if needed)
 app.get("/api/download", (req, res) => {
   const { url, formatId } = req.query;
   if (!url || !formatId)
     return res.status(400).json({ error: "Missing url or formatId" });
 
-  // ✅ If format has no audio, yt-dlp automatically merges with bestaudio
+  // ✅ yt-dlp will use your bundled ffmpeg
   const ytDlp = spawn("yt-dlp", [
     "-f",
     `${formatId}+bestaudio/best`,
+    "--ffmpeg-location",
+    ffmpegPath,
     "-o",
     "-",
     url,
@@ -79,6 +100,4 @@ app.get("/api/download", (req, res) => {
   });
 });
 
-app.listen(5000, () =>
-  console.log("✅ Server running on http://localhost:5000")
-);
+app.listen(5000, () => console.log("✅ Server running on http://localhost:5000"));
