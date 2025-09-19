@@ -16,13 +16,8 @@ app.use(express.json());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Now you can build ffmpeg path
-const ffmpegPath = path.join(
-  __dirname,
-  "ffmpeg-8.0-essentials_build",
-  "bin",
-  "ffmpeg.exe"
-);
+// Path to bundled ffmpeg
+const ffmpegPath = path.join(__dirname, "ffmpeg-8.0-essentials_build", "bin", "ffmpeg.exe");
 
 console.log(ffmpegPath); // Check path
 
@@ -76,16 +71,15 @@ app.get("/api/download", (req, res) => {
     return res.status(400).json({ error: "Missing url or formatId" });
 
   // ✅ yt-dlp will use your bundled ffmpeg
-  const ytDlp = spawn("yt-dlp", [
-    "-f",
-    `${formatId}+bestaudio/best`,
-    "--ffmpeg-location",
-    ffmpegPath,
-    "-o",
-    "-",
-    url,
-  ]);
-
+ const ytDlp = spawn("yt-dlp", [
+  "-f",
+  `${formatId}+bestaudio/best`,
+  "--ffmpeg-location",
+  ffmpegPath,
+  "-o",
+  "-",
+  url,
+]);
   res.setHeader("Content-Disposition", 'attachment; filename="video.mp4"');
   res.setHeader("Content-Type", "video/mp4");
 
