@@ -7,7 +7,7 @@ import { fileURLToPath } from "url";
 
 const app = express();
 app.use(cors({
-  origin:  ["http://localhost:5173","https://mygram247.netlify.app"],
+  origin:  "*",
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 }));
