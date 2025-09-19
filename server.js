@@ -6,7 +6,11 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin:  ["http://localhost:5173","https://mygram247.netlify.app"],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+}));
 app.use(express.json());
 
 // ✅ Path to your ffmpeg binary
