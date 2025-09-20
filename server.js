@@ -18,7 +18,7 @@ const ffmpegPath = isWindows
   ? path.join(__dirname, "ffmpeg-8.0-essentials_build", "bin", "ffmpeg.exe") // Windows local
   : path.join(__dirname, "ffmpeg-linux", "ffmpeg"); // Linux (Render)
 
-// Make Linux ffmpeg executable
+// Make sure Linux ffmpeg is executable
 if (!isWindows && fs.existsSync(ffmpegPath)) {
   fs.chmodSync(ffmpegPath, 0o755);
 }
