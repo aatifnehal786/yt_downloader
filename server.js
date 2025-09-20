@@ -11,6 +11,12 @@ app.use(express.json());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const isWindows = process.platform === "win32";
+const ffmpegPath = isWindows
+  ? path.join(__dirname, "ffmpeg-8.0-essentials_build", "bin", "ffmpeg.exe") // Windows
+  : path.join(__dirname, "ffmpeg-linux", "ffmpeg"); // Linux (Render)
+
+
 // ===== CORS =====
 app.use(
   cors({
@@ -21,7 +27,7 @@ app.use(
 );
 
 // ===== Path to bundled ffmpeg =====
-const ffmpegPath = path.join(__dirname, "ffmpeg-8.0-essentials_build", "bin", "ffmpeg.exe");
+
 
 // ===== Video Info Route =====
 app.get("/api/video-info", async (req, res) => {
