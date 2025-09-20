@@ -15,11 +15,13 @@ const __dirname = path.dirname(__filename);
 // ===== Detect OS =====
 const isWindows = process.platform === "win32";
 const ffmpegPath = isWindows
-  ? path.join(__dirname, "ffmpeg-8.0-essentials_build", "bin", "ffmpeg.exe")
-  : path.join(__dirname, "ffmpeg-linux", "ffmpeg"); // Linux ffmpeg binary
+  ? path.join(__dirname, "ffmpeg-8.0-essentials_build", "bin", "ffmpeg.exe") // Windows local
+  : path.join(__dirname, "ffmpeg-linux", "ffmpeg"); // Linux (Render)
 
-// Make sure Linux ffmpeg is executable
-if (!isWindows) fs.chmodSync(ffmpegPath, 0o755);
+// Make Linux ffmpeg executable
+if (!isWindows && fs.existsSync(ffmpegPath)) {
+  fs.chmodSync(ffmpegPath, 0o755);
+}
 
 // ===== CORS =====
 app.use(
@@ -45,7 +47,7 @@ app.get("/api/video-info", async (req, res) => {
     });
 
     const formats = info.formats
-      .filter((f) => f.vcodec !== "none") // Only video formats
+      .filter((f) => f.vcodec !== "none") // Only video
       .map((f) => ({
         formatId: f.format_id,
         quality: f.format_note || f.resolution || "unknown",
