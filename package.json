@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "postinstall": "chmod +x node_modules/yt-dlp-exec/bin/yt-dlp"
+    "postinstall": "node postinstall.js"
+
   },
   "keywords": [],
   "author": "",

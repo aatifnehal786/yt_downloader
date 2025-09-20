@@ -3,6 +3,7 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import ytdlp from "yt-dlp-exec";
+import fs from "fs";
 
 const app = express();
 app.use(express.json());
@@ -11,23 +12,23 @@ app.use(express.json());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ===== Detect OS =====
 const isWindows = process.platform === "win32";
 const ffmpegPath = isWindows
-  ? path.join(__dirname, "ffmpeg-8.0-essentials_build", "bin", "ffmpeg.exe") // Windows
-  : path.join(__dirname, "ffmpeg-linux", "ffmpeg"); // Linux (Render)
+  ? path.join(__dirname, "ffmpeg-8.0-essentials_build", "bin", "ffmpeg.exe")
+  : path.join(__dirname, "ffmpeg-linux", "ffmpeg"); // Linux ffmpeg binary
 
+// Make sure Linux ffmpeg is executable
+if (!isWindows) fs.chmodSync(ffmpegPath, 0o755);
 
 // ===== CORS =====
 app.use(
   cors({
-    origin: "http://localhost:5173", // your React frontend
+    origin: "http://localhost:5173",
     credentials: true,
     methods: ["GET", "POST", "OPTIONS"],
   })
 );
-
-// ===== Path to bundled ffmpeg =====
-
 
 // ===== Video Info Route =====
 app.get("/api/video-info", async (req, res) => {
@@ -43,16 +44,17 @@ app.get("/api/video-info", async (req, res) => {
       ffmpegLocation: ffmpegPath,
     });
 
-    // Filter formats: only video (with or without audio)
     const formats = info.formats
-      .filter((f) => f.vcodec !== "none")
+      .filter((f) => f.vcodec !== "none") // Only video formats
       .map((f) => ({
         formatId: f.format_id,
         quality: f.format_note || f.resolution || "unknown",
         ext: f.ext,
         hasVideo: f.vcodec !== "none",
         hasAudio: f.acodec !== "none",
-        size: f.filesize ? (f.filesize / (1024 * 1024)).toFixed(2) + " MB" : "Unknown",
+        size: f.filesize
+          ? (f.filesize / (1024 * 1024)).toFixed(2) + " MB"
+          : "Unknown",
       }));
 
     res.json({
@@ -69,7 +71,8 @@ app.get("/api/video-info", async (req, res) => {
 // ===== Download Route =====
 app.get("/api/download", (req, res) => {
   const { url, formatId } = req.query;
-  if (!url || !formatId) return res.status(400).json({ error: "Missing url or formatId" });
+  if (!url || !formatId)
+    return res.status(400).json({ error: "Missing url or formatId" });
 
   try {
     const download = ytdlp.raw(
@@ -80,7 +83,7 @@ app.get("/api/download", (req, res) => {
         "--ffmpeg-location",
         ffmpegPath,
         "-o",
-        "-",
+        "-", // pipe to stdout
       ],
       { stdio: ["ignore", "pipe", "pipe"] }
     );
@@ -89,9 +92,8 @@ app.get("/api/download", (req, res) => {
     res.setHeader("Content-Type", "video/mp4");
 
     download.stdout.pipe(res);
-
     download.stderr.on("data", (data) => console.error(data.toString()));
-    download.on("close", (code) => console.log("yt-dlp process exited with code", code));
+    download.on("close", (code) => console.log("yt-dlp exited with code", code));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to download video" });
